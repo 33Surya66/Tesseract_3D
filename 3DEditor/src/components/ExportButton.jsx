@@ -23,9 +23,9 @@ const analyzeShapeUsage = (shapes) => {
   return { usedGeometries, usedModels, usedImportedModels, basicShapes };
 };
 
-// Generate imports section
-const generateImports = (usedGeometries, basicShapes) => {
-  return `import React, { Suspense, useRef, useEffect } from 'react';
+// Generate imports section with environment components
+const generateImports = (usedGeometries, basicShapes, environment) => {
+  const baseImports = `import React, { Suspense, useRef, useEffect } from 'react';
   import { Canvas } from '@react-three/fiber';
   import { OrbitControls } from '@react-three/drei';
   import { useGLTF } from "@react-three/drei";
@@ -33,25 +33,30 @@ const generateImports = (usedGeometries, basicShapes) => {
   import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
   import { useLoader } from "@react-three/fiber";
   import * as THREE from 'three';`;
+
+  const environmentImports = environment !== 'none' ? 
+    `import { ${environment === 'stars' ? 'Stars' : 
+               environment === 'sky' ? 'Sky' : 
+               environment === 'clouds' ? 'Cloud' : 
+               'Environment'} } from '@react-three/drei';` : '';
+
+  return `${baseImports}
+  ${environmentImports}`;
 };
 
-// Generate geometry functions
 const generateGeometryFunctions = (usedGeometries) => {
   return Array.from(usedGeometries)
     .map((type) => geometryDefinitions[type])
     .join("\n\n");
 };
 
-// Generate the CustomGeometry component only if needed
 const generateCustomGeometryComponent = (usedGeometries) => {
   if (usedGeometries.size === 0) return "";
 
   const geometrySwitch = Array.from(usedGeometries)
     .map(
       (type) => `      case '${type}':
-          geometry = create${
-            type.charAt(0).toUpperCase() + type.slice(1)
-          }Geometry();
+          geometry = create${type.charAt(0).toUpperCase() + type.slice(1)}Geometry();
           break;`
     )
     .join("\n");
@@ -74,7 +79,6 @@ const generateCustomGeometryComponent = (usedGeometries) => {
   };`;
 };
 
-// Model component for loading GLTF models
 const generateModelComponent = (usedModels) => {
   if (usedModels.size === 0) return "";
 
@@ -133,7 +137,23 @@ const generateImportedModelComponent = (usedImportedModels) => {
   };`;
 };
 
-// Helper function to generate JSX for each shape
+const generateEnvironmentComponent = (environment, backgroundColor) => {
+  switch (environment) {
+    case 'stars':
+      return '<Stars count={5000} depth={50} factor={4} saturation={0} fade speed={1} />';
+    case 'sky':
+      return '<Sky sunPosition={[0, 1, 0]} />';
+    case 'clouds':
+      return '<Cloud position={[0, 15, 0]} opacity={0.7} speed={0.4} width={10} depth={1.5} segments={20} />';
+    case 'sunset':
+      return '<Environment preset="sunset" background blur={0.4} />';
+    case 'color':
+      return `<color attach="background" args={['${backgroundColor}']} />`;
+    default:
+      return '';
+  }
+};
+
 const generateShapeJSX = (shape) => {
   const { position, rotation, scale, color, type, texturePath } = shape;
   const pos = `[${position.join(", ")}]`;
@@ -166,12 +186,11 @@ const generateShapeJSX = (shape) => {
             </mesh>`;
 };
 
-// Main export function
-export const exportScene = (shapes, modelConfigs) => {
+export const exportScene = (shapes, environment = 'none', backgroundColor = '#000000') => {
   const { usedGeometries, usedModels, usedImportedModels, basicShapes } =
     analyzeShapeUsage(shapes);
 
-  const componentCode = `${generateImports()}
+  const componentCode = `${generateImports(usedGeometries, basicShapes, environment)}
     
     ${generateGeometryFunctions(usedGeometries)}
     ${generateCustomGeometryComponent(usedGeometries)}
@@ -180,22 +199,23 @@ export const exportScene = (shapes, modelConfigs) => {
     
   const CompiledScene = () => {
     return (
-      <div className="absolute inset-0">
-      <Canvas camera={{ position: [5, 5, 5], fov: 50 }}>
-        <ambientLight intensity={0.5} />
-        <directionalLight position={[5, 5, 5]} />
-        <OrbitControls makeDefault />
-        <Suspense fallback={null}>
-          ${shapes.map((shape) => generateShapeJSX(shape)).join("\n        ")}
-        </Suspense>
-      </Canvas>
+      <div className="absolute inset-0" ${environment === 'color' ? `style={{ background: '${backgroundColor}' }}` : ''}>
+        <Canvas camera={{ position: [5, 5, 5], fov: 50 }}>
+          <ambientLight intensity={0.5} />
+          <directionalLight position={[5, 5, 5]} intensity={0.8} />
+          <pointLight position={[-5, 5, -5]} intensity={0.5} />
+          <OrbitControls makeDefault />
+          <Suspense fallback={null}>
+            ${generateEnvironmentComponent(environment, backgroundColor)}
+            ${shapes.map((shape) => generateShapeJSX(shape)).join("\n            ")}
+          </Suspense>
+        </Canvas>
       </div>
     );
   };
   
   export default CompiledScene;`;
 
-  // Create and download the file
   const blob = new Blob([componentCode], { type: "text/javascript" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -206,21 +226,11 @@ export const exportScene = (shapes, modelConfigs) => {
   document.body.removeChild(link);
   URL.revokeObjectURL(url);
 };
-
-// Export button component
-export const ExportButton = ({ shapes }) => {
+export const ExportButton = ({ shapes, environment, backgroundColor }) => {
   return (
     <button
-      onClick={() => exportScene(shapes)}
-      style={{
-        padding: "10px 20px",
-        backgroundColor: "#4CAF50",
-        color: "white",
-        border: "none",
-        borderRadius: "4px",
-        cursor: "pointer",
-        fontSize: "16px",
-      }}
+      onClick={() => exportScene(shapes, environment, backgroundColor)}
+      className="px-5 py-2.5 bg-green-600 text-white rounded hover:bg-green-700 transition-colors text-base cursor-pointer"
     >
       Export Scene
     </button>
