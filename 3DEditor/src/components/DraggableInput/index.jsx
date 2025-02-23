@@ -22,7 +22,7 @@ const DraggableInput = ({
       if (!isDragging) return;
 
       const dx = e.clientX - startX;
-      const scaleFactor = 0.01;
+      const scaleFactor = 0.05;
       let newValue = startValue + dx * scaleFactor;
       newValue = Math.round(newValue * 100) / 100;
 

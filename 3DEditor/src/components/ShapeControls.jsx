@@ -30,8 +30,12 @@ const useHoverAnimation = (
   config = { rotationX: 0.2, rotationY: 0.5, lerpSpeed: 0.1 }
 ) => {
   useFrame((state) => {
-    // Only apply animation if the states exist and hovering is true
-    if (!ref.current || !animationStates || !animationStates[shapeId] || !animationStates[shapeId].hovering) {
+    if (
+      !ref.current ||
+      !animationStates ||
+      !animationStates[shapeId] ||
+      !animationStates[shapeId].hovering
+    ) {
       return;
     }
 
@@ -80,25 +84,61 @@ const ImportedModel = ({ shape, isSelected }) => {
   try {
     switch (shape.modelType) {
       case "glb":
-      case "gltf":
+      case "gltf": {
         const model = useLoader(GLTFLoader, shape.modelUrl);
+        useEffect(() => {
+          model.scene.traverse((node) => {
+            if (node.isMesh) {
+              const material = node.material.clone();
+              // Reset material properties when not selected
+              material.emissive = new THREE.Color(
+                isSelected ? "orange" : "black"
+              );
+              material.emissiveIntensity = isSelected ? 0.5 : 0;
+              material.transparent = isSelected;
+              material.opacity = isSelected ? 0.8 : 1;
+              node.material = material;
+            }
+          });
+        }, [isSelected, model.scene]);
         return <primitive object={model.scene} />;
-      case "obj":
+      }
+
+      case "obj": {
         const objModel = useLoader(OBJLoader, shape.modelUrl);
+        useEffect(() => {
+          objModel.traverse((node) => {
+            if (node.isMesh) {
+              const material = node.material.clone();
+              // Reset material properties when not selected
+              material.emissive = new THREE.Color(
+                isSelected ? "orange" : "black"
+              );
+              material.emissiveIntensity = isSelected ? 0.5 : 0;
+              material.transparent = isSelected;
+              material.opacity = isSelected ? 0.8 : 1;
+              node.material = material;
+            }
+          });
+        }, [isSelected, objModel]);
         return <primitive object={objModel} />;
-      case "stl":
+      }
+
+      case "stl": {
         const geometry = useLoader(STLLoader, shape.modelUrl);
         return (
           <mesh geometry={geometry}>
             <meshStandardMaterial
-              color={shape.color}
-              transparent={isSelected}
-              opacity={isSelected ? 0.5 : 1}
+              color={shape.color || "#888888"}
               emissive={isSelected ? "orange" : "black"}
-              emissiveIntensity={isSelected ? 1 : 0}
+              emissiveIntensity={isSelected ? 0.5 : 0}
+              transparent={isSelected}
+              opacity={isSelected ? 0.8 : 1}
             />
           </mesh>
         );
+      }
+
       default:
         return null;
     }
@@ -131,7 +171,6 @@ const ShapeControls = ({
     if (meshRef.current) {
       meshRef.current.position.set(...shape.position);
       meshRef.current.rotation.set(...shape.rotation);
-      meshRef.current.scale.set(shape.scale, shape.scale, shape.scale);
     }
   }, [shape]);
 
@@ -148,27 +187,22 @@ const ShapeControls = ({
     if (animations?.rotating) {
       meshRef.current.rotation.y += 0.02;
     }
-
     if (animations?.floating) {
       newPosition[1] =
         basePosition[1] + Math.sin(clock.elapsedTime + offset) * 0.2;
     }
-
     if (animations?.scaling) {
       newScale = shape.scale * (1 + Math.sin(clock.elapsedTime * 2) * 0.2);
     }
-
     if (animations?.pulsing) {
       newScale = shape.scale * (1 + Math.sin(clock.elapsedTime * 4) * 0.1);
     }
-
     if (animations?.bouncing) {
       newPosition[1] =
         basePosition[1] + Math.abs(Math.sin(clock.elapsedTime * 3)) * 0.3;
     }
 
     meshRef.current.position.set(...newPosition);
-
     if (newScale !== shape.scale) {
       meshRef.current.scale.set(newScale, newScale, newScale);
     }
@@ -221,13 +255,13 @@ const ShapeControls = ({
     };
   };
 
+  if (shape.isHidden) return null;
+
   const isModelType = Object.keys(modelConfigs).includes(shape.type);
   const texture = shape.texturePath ? useTexture(shape.texturePath) : null;
   const finalScale = isModelType
     ? shape.scale * (modelConfigs[shape.type]?.scale || 1)
     : shape.scale;
-
-  if (shape.isHidden) return null;
 
   return (
     <TransformControls
@@ -240,7 +274,8 @@ const ShapeControls = ({
         <mesh
           ref={meshRef}
           position={
-            getInterpolatedValues(shapeAnimationData, currentFrame)?.position
+            getInterpolatedValues(shapeAnimationData, currentFrame)?.position ||
+            shape.position
           }
           scale={[finalScale, finalScale, finalScale]}
           rotation={shape.rotation}
@@ -257,10 +292,10 @@ const ShapeControls = ({
               {shape.type === "sphere" && (
                 <sphereGeometry args={[0.7, 32, 32]} />
               )}
-              {shape.type === "cone" && <coneGeometry args={[0.5, 1, 32]} />}
               {shape.type === "cylinder" && (
                 <cylinderGeometry args={[0.5, 0.5, 1, 32]} />
               )}
+              {shape.type === "cone" && <coneGeometry args={[0.5, 1, 32]} />}
               {shape.type === "torus" && (
                 <torusGeometry args={[0.5, 0.2, 16, 100]} />
               )}
@@ -298,6 +333,7 @@ const ShapeControls = ({
               {shape.type === "wall" && (
                 <primitive object={createWallGeometry()} />
               )}
+
               <meshStandardMaterial
                 color={isSelected ? "yellow" : shape.color}
                 map={texture}
@@ -314,6 +350,7 @@ const ShapeControls = ({
   );
 };
 
+// Preload models
 Object.values(modelConfigs).forEach((config) => {
   useGLTF.preload(config.path);
 });

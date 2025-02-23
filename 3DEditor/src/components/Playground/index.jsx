@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Sidebar from "../Sidebar";
 import SceneRenderer from "../SceneRenderer";
 import useKeyboardShortcuts from "../../hooks/useKeyboardShortcuts";
@@ -59,6 +59,13 @@ const shapeLibrary = {
   ],
 };
 
+const defaultObject = {
+  position: [0, 0, 0],
+  rotation: [0, 0, 0],
+  color: "#888888",
+  scale: 1,
+};
+
 const Playground = () => {
   const {
     animationStates,
@@ -66,6 +73,7 @@ const Playground = () => {
     removeAnimation,
     getShapeAnimations,
   } = useAnimationControls();
+
   const [shapes, setShapes] = useState([]);
   const [history, setHistory] = useState([]);
   const [selectedObject, setSelectedObject] = useState(null);
@@ -73,6 +81,17 @@ const Playground = () => {
   const [isRotationEnabled, setIsRotationEnabled] = useState(false);
   const [currentFrame, setCurrentFrame] = useState(0);
   const [animationData, setAnimationData] = useState({});
+  const [pendingSelection, setPendingSelection] = useState(null);
+
+  useEffect(() => {
+    if (pendingSelection) {
+      const timer = setTimeout(() => {
+        setSelectedObject(null);
+        setPendingSelection(null);
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [pendingSelection]);
 
   const findShapeIcon = (shapeType) => {
     for (const category of Object.values(shapeLibrary)) {
@@ -82,42 +101,62 @@ const Playground = () => {
     return "⬡";
   };
 
+  const initializeAnimationData = (shape) => {
+    setAnimationData((prev) => ({
+      ...prev,
+      [shape.id]: {
+        0: {
+          position: [...shape.position],
+          rotation: [...shape.rotation],
+          scale: shape.scale,
+        },
+      },
+    }));
+  };
+
   const addShape = (shapeData) => {
+    const shapeId = Date.now();
+    let newShape;
+
     if (typeof shapeData === "string") {
-      // Existing basic shapes handling
-      const newShape = {
-        id: Date.now(),
+      // Library shapes
+      newShape = {
+        ...defaultObject,
+        id: shapeId,
         type: shapeData,
         icon: findShapeIcon(shapeData),
-        position: [0, 0, 0],
-        rotation: [0, 0, 0],
-        color: "#888888",
-        scale: 1,
       };
-      // Initialize animation data for the new shape
-      setAnimationData((prev) => ({
-        ...prev,
-        [newShape.id]: {
-          0: {
-            position: [...newShape.position],
-            rotation: [...newShape.rotation],
-            scale: newShape.scale,
-          },
-        },
-      }));
-      setHistory([...history, shapes]);
-      setShapes([...shapes, newShape]);
     } else {
-      // Handle imported models
-      setHistory([...history, shapes]);
-      setShapes([...shapes, shapeData]);
+      // Imported models
+      newShape = {
+        ...defaultObject,
+        ...shapeData,
+        id: shapeId,
+      };
+    }
+
+    // Save current state to history
+    setHistory((prev) => [...prev, shapes]);
+
+    // Add new shape
+    setShapes((prev) => [...prev, newShape]);
+
+    // Initialize animation data
+    initializeAnimationData(newShape);
+
+    // Handle selection based on shape type
+    if (typeof shapeData === "string") {
+      setSelectedObject(newShape);
+    } else {
+      setSelectedObject(null);
+      setPendingSelection(newShape);
     }
   };
 
   const updateObject = (updates) => {
     if (!selectedObject) return;
 
-    // Update the current frame's animation data
+    // Update animation data
     setAnimationData((prev) => ({
       ...prev,
       [selectedObject.id]: {
@@ -135,35 +174,39 @@ const Playground = () => {
       },
     }));
 
-    // Update the current shape state
-    setShapes(
-      shapes.map((shape) =>
+    // Update shape
+    setShapes((prev) =>
+      prev.map((shape) =>
         shape.id === selectedObject.id ? { ...shape, ...updates } : shape
       )
     );
   };
 
   const deleteShape = () => {
-    if (selectedObject) {
-      if (selectedObject.modelUrl) {
-        URL.revokeObjectURL(selectedObject.modelUrl);
-      }
-      // Remove animation data for the deleted shape
-      setAnimationData((prev) => {
-        const newData = { ...prev };
-        delete newData[selectedObject.id];
-        return newData;
-      });
+    if (!selectedObject) return;
 
-      setShapes(shapes.filter((shape) => shape.id !== selectedObject.id));
-      setSelectedObject(null);
+    // Cleanup resources
+    if (selectedObject.modelUrl) {
+      URL.revokeObjectURL(selectedObject.modelUrl);
     }
+
+    // Remove animation data
+    setAnimationData((prev) => {
+      const newData = { ...prev };
+      delete newData[selectedObject.id];
+      return newData;
+    });
+
+    // Remove shape
+    setShapes((prev) => prev.filter((shape) => shape.id !== selectedObject.id));
+    setSelectedObject(null);
   };
 
   const undo = () => {
     if (history.length > 0) {
       setShapes(history[history.length - 1]);
-      setHistory(history.slice(0, -1));
+      setHistory((prev) => prev.slice(0, -1));
+      setSelectedObject(null);
     }
   };
 
@@ -171,7 +214,12 @@ const Playground = () => {
     setSelectedObject(null);
   };
 
-  useKeyboardShortcuts({ deleteShape, undo, unselect, setIsRotationEnabled });
+  useKeyboardShortcuts({
+    deleteShape,
+    undo,
+    unselect,
+    setIsRotationEnabled,
+  });
 
   return (
     <div className="flex flex-col h-screen">
