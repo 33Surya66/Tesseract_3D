@@ -26,17 +26,20 @@ const ModelImporter = ({ addShape }) => {
         const formData = new FormData();
         formData.append("model", file);
 
-        const response = await fetch("http://localhost:3000/upload", {
-          method: "POST",
-          body: formData,
-        });
+        const response = await fetch(
+          "https://tesseract-backend.vercel.app/upload",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
 
         if (!response.ok) {
           throw new Error("Upload failed");
         }
 
         const data = await response.json();
-        
+
         // Create a new shape with both URLs
         const newShape = {
           id: Date.now(),
