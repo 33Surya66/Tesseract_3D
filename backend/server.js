@@ -89,7 +89,7 @@ app.post('/upload', (req, res) => {
       }
 
       // Generate both view and download URLs
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const baseUrl = `https://${req.get("host")}`;
       const viewUrl = `${baseUrl}/uploads/${req.file.filename}`;
       const downloadUrl = `${baseUrl}/download/${req.file.filename}`;
       
