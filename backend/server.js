@@ -58,6 +58,10 @@ app.get('/download/:filename', (req, res) => {
   res.download(filePath);
 });
 
+app.get('/ping', (req,res) => {
+  res.send("hi")
+});
+  
 // Upload endpoint
 app.post('/upload', (req, res) => {
   upload.single('model')(req, res, (err) => {
