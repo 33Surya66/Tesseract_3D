@@ -5,8 +5,13 @@ const cors = require('cors');
 const fs = require('fs');
 
 const app = express();
-app.use(cors());
-
+app.use(
+  cors({
+    origin: "*", 
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 
 // Create uploads directory if it doesn't exist
