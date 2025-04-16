@@ -5,8 +5,13 @@ const cors = require('cors');
 const fs = require('fs');
 
 const app = express();
-app.use(cors());
-
+app.use(
+  cors({
+    origin: "*", 
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 app.use(express.json());
 
 // Create uploads directory if it doesn't exist
@@ -58,6 +63,10 @@ app.get('/download/:filename', (req, res) => {
   res.download(filePath);
 });
 
+app.get('/ping', (req,res) => {
+  res.send("hi")
+});
+  
 // Upload endpoint
 app.post('/upload', (req, res) => {
   upload.single('model')(req, res, (err) => {
@@ -80,7 +89,7 @@ app.post('/upload', (req, res) => {
       }
 
       // Generate both view and download URLs
-      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const baseUrl = `https://${req.get("host")}`;
       const viewUrl = `${baseUrl}/uploads/${req.file.filename}`;
       const downloadUrl = `${baseUrl}/download/${req.file.filename}`;
       
