@@ -27,7 +27,7 @@ const ModelImporter = ({ addShape }) => {
         formData.append("model", file);
 
         const response = await fetch(
-          "https://tesseract-backend.vercel.app/upload",
+          "https://tesseract-3d-backend.vercel.app/upload",
           {
             method: "POST",
             body: formData,
